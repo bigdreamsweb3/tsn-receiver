@@ -1,0 +1,33 @@
+{
+  "name": "@trustlink/tsn-receiver",
+  "private": true,
+  "description": "TSN Receiver by TrustLink Labs — durable Firebase-backed ingress, work leasing, and status service for the Transfer Settlement Network.",
+  "type": "module",
+  "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bigdreamsweb3/tsn-receiver.git"
+  },
+  "homepage": "https://github.com/bigdreamsweb3/tsn-receiver#readme",
+  "bugs": {
+    "url": "https://github.com/bigdreamsweb3/tsn-receiver/issues"
+  },
+  "scripts": {
+    "dev": "next dev -p 8010",
+    "build": "next build",
+    "start": "next start -p 8010",
+    "typecheck": "tsc --noEmit --pretty false",
+    "test": "npm run typecheck && node --experimental-strip-types --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0",
+    "next": "^15.4.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "@types/react": "^19.1.9",
+    "typescript": "^5.8.3"
+  }
+}
