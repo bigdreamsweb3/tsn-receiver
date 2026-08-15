@@ -7,6 +7,14 @@ function cleanUrl(value: string) {
   return value.trim().replace(/^['"]|['"]$/g, "").replace(/\/$/, "");
 }
 
+function errorStatus(error: unknown) {
+  const message = error instanceof Error ? error.message : "ERROR";
+  if (message === "UNAUTHORIZED_SERVICE") return 401;
+  if (message.includes("authorization service is unavailable")) return 503;
+  if (message.includes("TSN Node authorization failed")) return 502;
+  return 409;
+}
+
 export async function POST(request: NextRequest) {
   try {
     requireService(request, "cranker");
@@ -35,7 +43,7 @@ export async function POST(request: NextRequest) {
     // the Node. Crankers receive only the Node-verified, privacy-minimized view.
     return NextResponse.json({ work: work ? { ...work, payload: {} } : null });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "ERROR" }, { status: 401 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "ERROR" }, { status: errorStatus(error) });
   }
 }
 
