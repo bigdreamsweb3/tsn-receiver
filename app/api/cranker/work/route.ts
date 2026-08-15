@@ -35,7 +35,10 @@ export async function POST(request: NextRequest) {
         if (response.status < 500) break;
       }
       if (!response) throw new Error("TSN Node authorization service is unavailable");
-      if (!response.ok) throw new Error(`TSN Node authorization failed (${response.status})`);
+      if (!response.ok) {
+        const detail = (await response.text()).slice(0, 500);
+        throw new Error(`TSN Node authorization failed (${response.status}): ${detail}`);
+      }
       const authorization = await response.json() as Record<string, unknown>;
       work = await attachCrankerAuthorization({ id: work.id, owner: body.crankerId, expectedVersion: work.stateVersion, authorization });
     }
