@@ -153,7 +153,7 @@ export async function transition(params: {
   evidence?: Record<string, unknown>;
 }) {
   const ref = workCollection.doc(params.id);
-  return db.runTransaction(async (transaction) => {
+  const result = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     if (!snapshot.exists) throw new Error("WORK_NOT_FOUND");
     const current = snapshot.data() as ReceiverWork;
@@ -177,4 +177,11 @@ export async function transition(params: {
     transaction.update(ref, patch);
     return { ...current, ...patch } as ReceiverWork;
   });
+  // Node verification is the point at which Cranker work becomes leaseable.
+  // Publish a fresh control-only wake after the Firestore transition commits;
+  // the first ingress wake may have arrived before verification completed.
+  if (params.actor === "node" && params.status === "VERIFIED") {
+    await publishCrankerWake("VERIFIED");
+  }
+  return result;
 }
