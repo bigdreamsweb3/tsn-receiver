@@ -10,8 +10,17 @@ export async function GET() {
     return NextResponse.json({ service: "TSN_RECEIVER", storage: "FIREBASE", status: "READY" });
   } catch (error) {
     console.error("TSN Receiver Firebase health check failed", error);
+    const errorCode =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code ?? "FIREBASE_STORAGE_ERROR")
+        : "FIREBASE_STORAGE_ERROR";
     return NextResponse.json(
-      { service: "TSN_RECEIVER", storage: "FIREBASE", status: "DEGRADED" },
+      {
+        service: "TSN_RECEIVER",
+        storage: "FIREBASE",
+        status: "DEGRADED",
+        errorCode,
+      },
       { status: 503 },
     );
   }
