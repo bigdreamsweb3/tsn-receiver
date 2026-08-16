@@ -2,6 +2,7 @@ import { FieldPath, Timestamp } from "firebase-admin/firestore";
 import { workCollection, db } from "./firebase";
 import { createReceivedWork, type ReceiverWork, type WorkKind, type WorkStatus } from "./work-contract";
 import { wakeTsnNode } from "./node-wake";
+import { publishCrankerWake } from "./cranker-wake";
 
 const now = () => new Date().toISOString();
 
@@ -22,7 +23,9 @@ export async function receive(input: { id?: string; kind: WorkKind; payload: Rec
   });
   // Notify only after the Firestore transaction is durable. The notification
   // contains no payload; the Node re-reads work through its authenticated API.
-  if (result.created) await wakeTsnNode(input.kind);
+  if (result.created) {
+    await Promise.all([wakeTsnNode(input.kind), publishCrankerWake(input.kind)]);
+  }
   return result.work;
 }
 

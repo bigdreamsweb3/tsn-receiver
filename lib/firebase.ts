@@ -61,6 +61,10 @@ function credential() {
   return cert({ projectId, clientEmail, privateKey });
 }
 
-const app = getApps()[0] ?? initializeApp({ credential: credential() });
+const databaseURL = process.env.FIREBASE_DATABASE_URL?.trim();
+export const app = getApps()[0] ?? initializeApp({
+  credential: credential(),
+  ...(databaseURL ? { databaseURL } : {}),
+});
 export const db = getFirestore(app);
 export const workCollection = db.collection(process.env.TSN_RECEIVER_COLLECTION ?? "tsn_receiver_work");
