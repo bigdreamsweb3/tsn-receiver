@@ -48,6 +48,11 @@ TSN_RECEIVER_NODE_API_KEY
 TSN_RECEIVER_CRANKER_API_KEY
 ```
 
+All three Firebase variables are mandatory in the hosted Receiver. The service
+does not fall back to Google application-default credentials, because a Vercel
+function has no implicit Firebase identity. If any value is missing or the
+private key has invalid newline escaping, durable state requests fail closed.
+
 Optional variables:
 
 ```text
