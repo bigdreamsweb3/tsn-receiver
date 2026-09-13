@@ -8,10 +8,13 @@ const rateCollection = db.collection(process.env.TSN_RECEIVER_CRANKER_RATE_COLLE
 const CHALLENGE_TTL_MS = 60_000;
 const MAX_LEASE_ATTEMPTS_PER_MINUTE = 30;
 
-const TSN_PROGRAM_ID = new PublicKey(
-  process.env.TSN_PROGRAM_ID ?? "TSN31jddtsmUg4D5aEdhY31nwB1e53VJJg9X8NoRP8V",
-);
-const SOLANA_RPC_URL = process.env.TSN_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+// This Receiver admission boundary is pinned to the verified Devnet TSN
+// deployment. A stale hosted environment variable must not silently move
+// Mother-DNA validation to another program or cluster.
+const VERIFIED_TSN_PROGRAM_ID = "TSN31jddtsmUg4D5aEdhY31nwB1e53VJJg9X8NoRP8V";
+const VERIFIED_TSN_SOLANA_RPC_URL = "https://api.devnet.solana.com";
+const TSN_PROGRAM_ID = new PublicKey(VERIFIED_TSN_PROGRAM_ID);
+const SOLANA_RPC_URL = VERIFIED_TSN_SOLANA_RPC_URL;
 const MOTHER_SEED = Buffer.from("tsn_mother_escrow");
 const CRANKER_SEED = Buffer.from("tsn_cranker");
 const ANCHOR_DISCRIMINATOR_BYTES = 8;
