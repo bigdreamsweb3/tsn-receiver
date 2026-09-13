@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireService } from "../../../../lib/auth";
+import { authenticateCrankerRequest, enforceCrankerLeaseRateLimit } from "../../../../lib/cranker-auth";
 import { attachCrankerAuthorization, leaseForCranker, transition } from "../../../../lib/store";
 export const runtime = "nodejs";
 
@@ -10,19 +10,44 @@ function cleanUrl(value: string) {
 function errorStatus(error: unknown) {
   const message = error instanceof Error ? error.message : "ERROR";
   if (message === "UNAUTHORIZED_SERVICE") return 401;
+  if (message.includes("CRANKER_SIGNATURE") || message.includes("CHALLENGE") || message.includes("REQUEST_EXPIRED")) return 401;
+  if (message.includes("RATE_LIMITED")) return 429;
   if (/fetch failed|ECONNRESET|network|timeout|temporarily unavailable/i.test(message)) return 503;
   if (message.includes("authorization service is unavailable")) return 503;
   if (message.includes("TSN Node authorization failed")) return 502;
   return 409;
 }
 
+function crankerWorkView(work: Awaited<ReturnType<typeof leaseForCranker>>) {
+  if (!work) return null;
+  // Funding work exposes only the already sender-signed transaction envelope
+  // required for sponsorship. It never exposes the private Node payload,
+  // recipient TIN, route map, commitment plaintext, or payment record fields.
+  const fundingPayload = work.kind === "AUTHORIZED_FUNDING" && work.verification?.verifiedPayload && typeof work.verification.verifiedPayload === "object"
+    ? Object.fromEntries(Object.entries(work.verification.verifiedPayload as Record<string, unknown>)
+      .filter(([key]) => ["senderSignedFundingTransaction", "senderSignedFundingFeePayer", "senderFundingMode"].includes(key)))
+    : undefined;
+  return {
+    id: work.id, kind: work.kind, status: work.status, stateVersion: work.stateVersion,
+    payload: {},
+    receivedAt: work.receivedAt, updatedAt: work.updatedAt, crankerLease: work.crankerLease ?? null,
+    verification: work.verification ? {
+      verificationType: work.verification.verificationType ?? null,
+      ...(fundingPayload && Object.keys(fundingPayload).length ? { verifiedPayload: fundingPayload } : {}),
+    } : null,
+    authorization: work.authorization ?? null,
+    result: work.result ?? null,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
-    requireService(request, "cranker");
-    const body = await request.json() as { crankerId?: string; supportedKinds?: Parameters<typeof leaseForCranker>[1] };
-    if (!body.crankerId) throw new Error("crankerId is required");
-    let work = await leaseForCranker(body.crankerId, body.supportedKinds);
-    if (work && (work.kind === "CLAIM" || work.kind === "RECOVERY")) {
+    const bodyText = await request.text();
+    const operator = await authenticateCrankerRequest(request, bodyText, "POST", "/api/cranker/work");
+    await enforceCrankerLeaseRateLimit(operator);
+    const body = JSON.parse(bodyText) as { supportedKinds?: Parameters<typeof leaseForCranker>[1] };
+    let work = await leaseForCranker(operator, body.supportedKinds);
+    if (work && work.kind === "SETTLEMENT") {
       const nodeUrls = [process.env.TSN_NODE_URL, process.env.TSN_NODE_FALLBACK_URL || "https://tsn-node.wasmer.app"].filter(Boolean).map((value) => cleanUrl(value as string));
       const nodeKey = process.env.TSN_RECEIVER_NODE_API_KEY;
       if (!nodeKey || nodeUrls.length === 0) throw new Error("TSN Node authorization service is not configured");
@@ -30,15 +55,15 @@ export async function POST(request: NextRequest) {
       let lastNodeError = "";
       for (const nodeUrl of [...new Set(nodeUrls)]) {
         try {
-          response = await fetch(`${nodeUrl}/internal/settlement-authorizations/${work.kind.toLowerCase()}`, {
+          response = await fetch(`${nodeUrl}/internal/settlement-authorizations/settlement`, {
             method: "POST",
             headers: { "content-type": "application/json", "x-api-key": nodeKey },
-            body: JSON.stringify({ workId: work.id, crankerPubkey: body.crankerId }),
+            body: JSON.stringify({ workId: work.id, crankerPubkey: operator }),
           });
           if (response.status < 500) break;
           lastNodeError = `${nodeUrl} returned ${response.status}`;
         } catch (error) {
-          // A dead primary Node must not strand a leased claim when a
+          // A dead primary Node must not strand a leased settlement when a
           // configured fallback is available. Continue to the next URL.
           lastNodeError = `${nodeUrl}: ${error instanceof Error ? error.message : "fetch failed"}`;
           response = undefined;
@@ -50,11 +75,11 @@ export async function POST(request: NextRequest) {
         throw new Error(`TSN Node authorization failed (${response.status}): ${detail}`);
       }
       const authorization = await response.json() as Record<string, unknown>;
-      work = await attachCrankerAuthorization({ id: work.id, owner: body.crankerId, expectedVersion: work.stateVersion, authorization });
+      work = await attachCrankerAuthorization({ id: work.id, owner: operator, expectedVersion: work.stateVersion, authorization });
     }
     // The ingress payload may contain private routing identifiers required by
     // the Node. Crankers receive only the Node-verified, privacy-minimized view.
-    return NextResponse.json({ work: work ? { ...work, payload: {} } : null });
+    return NextResponse.json({ work: crankerWorkView(work) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "ERROR" }, { status: errorStatus(error) });
   }
@@ -62,9 +87,10 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    requireService(request, "cranker");
-    const body = await request.json() as Parameters<typeof transition>[0];
-    return NextResponse.json(await transition({ ...body, actor: "cranker" }));
+    const bodyText = await request.text();
+    const operator = await authenticateCrankerRequest(request, bodyText, "PATCH", "/api/cranker/work");
+    const body = JSON.parse(bodyText) as Parameters<typeof transition>[0];
+    return NextResponse.json(await transition({ ...body, owner: operator, actor: "cranker" }));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "ERROR" }, { status: errorStatus(error) });
   }
