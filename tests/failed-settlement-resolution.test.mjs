@@ -1,0 +1,11 @@
+import { compileReceiverFixture } from "./support/compile-receiver-fixture.mjs";
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import test from "node:test";
+import { PublicKey } from "@solana/web3.js";
+import { caseExpiredFailedCreditResolvesOnlyWithAnUnchangedFinalizedRootRet } from "./cases/failed-settlement-resolution/expired-failed-credit-resolves-only-with-an-unchanged-finalized-root-ret.mjs";
+test("expired failed credit resolves only with an unchanged finalized root, retaining original work", caseExpiredFailedCreditResolvesOnlyWithAnUnchangedFinalizedRootRet);

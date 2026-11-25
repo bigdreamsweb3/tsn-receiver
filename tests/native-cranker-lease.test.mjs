@@ -1,0 +1,10 @@
+import { compileReceiverFixture } from "./support/compile-receiver-fixture.mjs";
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import test from "node:test";
+import ts from "typescript";
+import { caseNativeCrankerLeasesCoverBothAuthorizationPassesAndExpireWithout } from "./cases/native-cranker-lease/native-cranker-leases-cover-both-authorization-passes-and-expire-without.mjs";
+test("native Cranker leases cover both authorization passes and expire without replacing signed work", caseNativeCrankerLeasesCoverBothAuthorizationPassesAndExpireWithout);

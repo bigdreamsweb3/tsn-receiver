@@ -1,15 +1,7 @@
-import { NextRequest } from "next/server";
-import { proxyNode } from "../../lib/node-proxy";
-
+/** Stable Next route facade; implementations are bound at this request boundary. */
 export const runtime = "nodejs";
-
-// TIN operation intents are validated and queued by the TSN Node.  The
-// Receiver is the public Firebase-backed ingress, so keep this hop here
-// rather than exposing a second queue implementation.
-export async function GET(request: NextRequest) {
-  return proxyNode(request, "tin-operations");
-}
-
-export async function POST(request: NextRequest) {
-  return proxyNode(request, "tin-operations");
-}
+import { dependencies } from "../../lib/http/tin-operations/runtime";
+import { GET as GETComponent } from "../../lib/http/tin-operations/GET";
+export const GET = GETComponent.bind(null, dependencies);
+import { POST as POSTComponent } from "../../lib/http/tin-operations/POST";
+export const POST = POSTComponent.bind(null, dependencies);

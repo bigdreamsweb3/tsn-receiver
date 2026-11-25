@@ -1,15 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { issueCrankerChallenge } from "../../../../../lib/cranker-auth";
+/** Stable Next route facade; implementations are bound at this request boundary. */
 export const runtime = "nodejs";
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json() as { publicKey?: string };
-    const publicKey = body.publicKey?.trim() ?? "";
-    if (!publicKey) return NextResponse.json({ error: "publicKey is required" }, { status: 422 });
-    return NextResponse.json(await issueCrankerChallenge(publicKey));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "ERROR";
-    return NextResponse.json({ error: message }, { status: message.startsWith("CRANKER_") ? 403 : 400 });
-  }
-}
+import { dependencies } from "../../../../../lib/http/api/cranker/auth/challenge/runtime";
+import { POST as POSTComponent } from "../../../../../lib/http/api/cranker/auth/challenge/POST";
+export const POST = POSTComponent.bind(null, dependencies);

@@ -1,0 +1,10 @@
+import { compileReceiverFixture } from "./support/compile-receiver-fixture.mjs";
+import assert from "node:assert/strict";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import test from "node:test";
+import { caseNodeRenewalPreservesItsGenerationAndSignedDecisionsAfterTheOri } from "./cases/node-lease-renewal/node-renewal-preserves-its-generation-and-signed-decisions-after-the-ori.mjs";
+test("Node renewal preserves its generation and signed decisions after the original lease expires", caseNodeRenewalPreservesItsGenerationAndSignedDecisionsAfterTheOri);

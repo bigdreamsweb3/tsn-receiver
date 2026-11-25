@@ -20,7 +20,7 @@ function normalizePrivateKey(raw) {
 
 async function main() {
     try {
-        const envPath = path.resolve('tsn-protocol/tsn-receiver/.env.local');
+        const envPath = path.resolve('tsn-protocol/services/tsn-receiver/.env.local');
         const envText = fs.readFileSync(envPath, 'utf8');
         const env = Object.fromEntries(envText.split(/\r?\n/).filter(Boolean).map((line) => {
             const idx = line.indexOf('=');

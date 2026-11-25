@@ -1,61 +1,45 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
-import { test } from "node:test";
-import { assertExternalWorkKind, assertAuthorizedFundingIngress, createReceivedWork, publicCoordinationPayload } from "../lib/work-contract.ts";
-
-function base58(bytes) {
-  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let number = BigInt(`0x${Buffer.from(bytes).toString("hex")}`);
-  let output = "";
-  while (number) { const remainder = Number(number % 58n); output = alphabet[remainder] + output; number /= 58n; }
-  for (const byte of bytes) { if (byte === 0) output = `1${output}`; else break; }
-  return output;
-}
-
-test("receiver accepts only public work and creates monotonic initial state", () => {
-  const work = createReceivedWork({
-    id: "intent-1",
-    kind: "AUTHORIZED_FUNDING",
-    payload: { paymentId: "p", recipientHash: "h", privacyVersion: 2 },
-  });
-  assert.equal(work.status, "RECEIVED");
-  assert.equal(work.stateVersion, 1);
-  assert.match(work.payloadCommitment, /^[a-f0-9]{64}$/);
-});
-
-test("receiver rejects fields outside the durable allowlist, regardless of their name", () => {
-  assert.throws(() => createReceivedWork({
-    kind: "AUTHORIZED_FUNDING",
-    payload: { paymentId: "p", totallyDifferentSecret: "unsafe" },
-  }), /UNSUPPORTED_PAYLOAD_FIELD/);
-  assert.throws(() => createReceivedWork({
-    kind: "SETTLEMENT",
-    payload: { master_seed: "unsafe" },
-  }), /UNSUPPORTED_PAYLOAD_FIELD/);
-});
-
-test("canonical commitment is independent of object insertion order", () => {
-  const first = createReceivedWork({ kind: "SETTLEMENT", payload: { paymentId: "p", intentId: "i", recipientHash: "h", source: "test" } });
-  const second = createReceivedWork({ kind: "SETTLEMENT", payload: { source: "test", recipientHash: "h", intentId: "i", paymentId: "p" } });
-  assert.equal(first.payloadCommitment, second.payloadCommitment);
-});
-
-test("coordination views never include the encrypted envelope", () => {
-  const work = createReceivedWork({ kind: "AUTHORIZED_FUNDING", payload: { paymentId: "p", recipientHash: "h", nodeEncryptedPayload: { version: 1, iv: "i", ciphertext: "c", tag: "t" } } });
-  assert.deepEqual(publicCoordinationPayload(work), { paymentId: "p", recipientHash: "h" });
-});
-
-test("payment ingress requires a valid sender Ed25519 authorization", () => {
-  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-  const der = publicKey.export({ format: "der", type: "spki" });
-  const wallet = base58(der.subarray(-32));
-  const message = "TSN payment authorization";
-  const payload = { paymentId: "p", recipientHash: "h", recipientRouteCommitment: "c", recipientRouteVersion: 1, tokenMintAddress: "m", amount: 1, senderWallet: wallet, senderAuthorizationMessage: message, senderAuthorizationSignature: sign(null, Buffer.from(message), privateKey).toString("base64"), senderAuthorizationNonce: "n" };
-  assert.doesNotThrow(() => assertAuthorizedFundingIngress(payload));
-  assert.throws(() => assertAuthorizedFundingIngress({ ...payload, senderAuthorizationSignature: Buffer.alloc(64).toString("base64") }), /INVALID_SENDER_SIGNATURE/);
-});
-
-test("public Receiver ingress cannot create settlement or recovery work", () => {
-  assert.throws(() => assertExternalWorkKind("SETTLEMENT"), /SETTLEMENT_WORK_INTERNAL_ONLY/);
-  assert.doesNotThrow(() => assertExternalWorkKind("AUTHORIZED_FUNDING"));
-});
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { after, test } from "node:test";
+import { compileReceiverFixture } from "./support/compile-receiver-fixture.mjs";
+import { caseWorkCreationPorts } from "./cases/contracts/work-creation-ports.mjs";
+import { caseCompactAndLegacyRecords } from "./cases/contracts/compact-and-legacy-records.mjs";
+import { caseEncodeFixtureBase58 } from "./cases/contracts/encode-fixture-base58.mjs";
+import { caseInitialWorkState } from "./cases/contracts/initial-work-state.mjs";
+import { caseDurablePayloadAllowlists } from "./cases/contracts/durable-payload-allowlists.mjs";
+import { caseFundingPrivateFields } from "./cases/contracts/funding-private-fields.mjs";
+import { caseCurrentTinIngress } from "./cases/contracts/current-tin-ingress.mjs";
+import { caseCanonicalObjectOrder } from "./cases/contracts/canonical-object-order.mjs";
+import { casePublicEnvelopeExclusion } from "./cases/contracts/public-envelope-exclusion.mjs";
+import { caseFundingEvidenceCompaction } from "./cases/contracts/funding-evidence-compaction.mjs";
+import { caseLegacyPublicProjection } from "./cases/contracts/legacy-public-projection.mjs";
+import { caseSenderAuthorization } from "./cases/contracts/sender-authorization.mjs";
+import { casePublicWorkKindBoundary } from "./cases/contracts/public-work-kind-boundary.mjs";
+import { caseSettlementProofProjection } from "./cases/contracts/settlement-proof-projection.mjs";
+import { caseSettlementAuthorizationBinding } from "./cases/contracts/settlement-authorization-binding.mjs";
+import { caseAccountingProofProjection } from "./cases/contracts/accounting-proof-projection.mjs";
+const moduleDirectory = await mkdtemp(path.join(tmpdir(), "receiver-work-contract-"));
+await compileReceiverFixture(moduleDirectory, ["work-contract.ts"]);
+const { assertExternalWorkKind, assertAuthorizedFundingIngress, compactAuthorizedFundingVerification, compactVerificationPayload, crankerAuthorizationForWork, crankerExecutionPayload, createReceivedWork, publicCoordinationPayload, verifiedPayloadForWork } = await import(pathToFileURL(path.join(moduleDirectory, "work-contract.mjs")).href);
+after(rm.bind(null, moduleDirectory, { recursive: true, force: true }));
+const fundingNoteFixture = { version: 1, secret: "00".repeat(31) + "01", blinding: "00".repeat(31) + "02", commitment: "00".repeat(31) + "03" };
+test("work creation accepts isolated clock and identity ports without service state", caseWorkCreationPorts.bind(null, createReceivedWork));
+test("compact and legacy verified records preserve the same reconstructed payload", caseCompactAndLegacyRecords.bind(null, createReceivedWork, compactVerificationPayload, verifiedPayloadForWork));
+const base58 = caseEncodeFixtureBase58;
+test("receiver accepts only public work and creates monotonic initial state", caseInitialWorkState.bind(null, createReceivedWork));
+test("receiver rejects fields outside the durable allowlist, regardless of their name", caseDurablePayloadAllowlists.bind(null, createReceivedWork));
+test("funding work rejects plaintext TIN in its durable payload", caseFundingPrivateFields.bind(null, createReceivedWork, fundingNoteFixture));
+test("TIN ingress accepts the current V1 shape and rejects retired or plaintext fields", caseCurrentTinIngress.bind(null, createReceivedWork));
+test("canonical commitment is independent of object insertion order", caseCanonicalObjectOrder.bind(null, createReceivedWork));
+test("coordination views never include the encrypted envelope", casePublicEnvelopeExclusion.bind(null, createReceivedWork, publicCoordinationPayload));
+test("funding verification compaction never persists recipient TIN or sender authorization", caseFundingEvidenceCompaction.bind(null, compactAuthorizedFundingVerification, fundingNoteFixture, crankerExecutionPayload));
+test("public coordination filters recipient TIN from legacy verification records", caseLegacyPublicProjection.bind(null, createReceivedWork, publicCoordinationPayload));
+test("payment ingress requires a valid sender Ed25519 authorization", caseSenderAuthorization.bind(null, base58, fundingNoteFixture, assertAuthorizedFundingIngress));
+test("public Receiver ingress cannot create settlement or recovery work", casePublicWorkKindBoundary.bind(null, assertExternalWorkKind));
+test("settlement handoff includes the Memo body and removes hidden-head witness data", caseSettlementProofProjection.bind(null, fundingNoteFixture, crankerExecutionPayload));
+test("settlement authorization retains only the matching verified public transition", caseSettlementAuthorizationBinding.bind(null, createReceivedWork, fundingNoteFixture, crankerAuthorizationForWork));
+test("coordination execution and authorization exclude private source lists and openings", caseAccountingProofProjection.bind(null, crankerExecutionPayload, crankerAuthorizationForWork));

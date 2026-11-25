@@ -1,9 +1,13 @@
 # Runtime secrets: never export or commit.
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
+!.env.sample
+!.env.template
 .fb_creds/
+*.service-account.json
+*firebase-adminsdk*.json
+*[-_]keypair.json
 
 # Local and generated output.
 node_modules/
@@ -11,3 +15,11 @@ node_modules/
 .next-stale-mixed-runtime/
 tsconfig.tsbuildinfo
 npm-debug.log*
+*.log
+dist/
+build/
+coverage/
+.next-stale-*/
+
+# Protected local manifest, records, journals, backups, temporary files and locks.
+.receiver-store*
