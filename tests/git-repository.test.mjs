@@ -4,7 +4,13 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { test } from "node:test";
-import { checkPrivateTree, commitPushReceiver, fetchReceiver, gitEnvironment, main, networkArguments, openRepository, packageDestination, pushTimeout, receiverRoot, receiverUrl, validateConfiguration } from "../scripts/git-repository.mjs";
+import { checkPrivateTree, commitPushReceiver, fetchReceiver, gitEnvironment, isPrivatePath, main, networkArguments, openRepository, packageDestination, pushTimeout, receiverRoot, receiverUrl, validateConfiguration } from "../scripts/git-repository.mjs";
+
+const privateFiles = [".env.production", "firebase.service-account.json", "mother-keypair.json", ".receiver-store.json",
+  ".dev.vars", ".dev.vars.production", "private/.env.example", "record-store-worker/private/storage-token.env",
+  "private-state/records.json", "secrets/token.txt", "credentials/account.json", "keys/signer.json", ".keys/text", ".node-cache/reply.json",
+  "storage-token.env", "storage-token.env.backup", "signer.pem", "account.key", "receiver.import.sql", "receiver.export.sql",
+  "receiver-export-test.json", "receiver.sqlite", "record-store-worker/wrangler.toml"];
 
 function git(args, cwd) {
   const result = spawnSync("git", args, { cwd, env: gitEnvironment(), encoding: "utf8", windowsHide: true, timeout: 15000 });
@@ -73,7 +79,12 @@ test("nested Receiver publication captures only its files and preserves protocol
     const originalIndex = readFileSync(join(f.top, ".git", "index"));
     writeFileSync(join(f.root, "receiver.txt"), "Receiver update\n");
     writeFileSync(join(f.root, "new.txt"), "new Receiver file\n");
-    for (const name of [".env.production", "firebase.service-account.json", "mother-keypair.json", ".receiver-store.json"]) writeFileSync(join(f.root, name), "synthetic-private\n");
+    for (const name of privateFiles) {
+      mkdirSync(resolve(f.root, name, ".."), { recursive: true });
+      writeFileSync(join(f.root, name), "synthetic-private\n");
+    }
+    // In an independent Receiver publication, the Worker keeps its own ignore rule.
+    writeFileSync(join(f.root, "record-store-worker", ".gitignore"), "wrangler.toml\n");
     const repo = openRepository(f.root);
     assert.equal(repo.gitDir, join(f.top, ".git", "trustlink-receiver-publication.git"));
     const network = syntheticNetwork(repo, upstream);
@@ -81,14 +92,14 @@ test("nested Receiver publication captures only its files and preserves protocol
     assert.deepEqual(network.calls.map(call => call.command), ["fetch", "push"]);
     assert.equal(git(["--git-dir", repo.gitDir, "rev-parse", `${commit}^`]), upstream.initial);
     const files = git(["--git-dir", repo.gitDir, "ls-tree", "-r", "--name-only", commit]).split("\n");
-    assert.deepEqual(files, [".gitignore", "new.txt", "package.json", "receiver.txt"]);
+    assert.deepEqual(files, [".gitignore", "new.txt", "package.json", "receiver.txt", "record-store-worker/.gitignore"]);
     assert.equal(git(["rev-parse", "HEAD"], f.top), f.initial);
     assert.deepEqual(readFileSync(join(f.top, ".git", "index")), originalIndex);
     assert.equal(network.calls[1].args.at(-1), `${commit}:refs/heads/main`);
     assert.equal(git(["--git-dir", repo.gitDir, "rev-parse", "refs/remotes/origin/main"]), commit);
     unlinkSync(join(f.root, "new.txt"));
     const deleted = commitPushReceiver(repo, { runNetwork: network.run });
-    assert.deepEqual(git(["--git-dir", repo.gitDir, "ls-tree", "-r", "--name-only", deleted]).split("\n"), [".gitignore", "package.json", "receiver.txt"]);
+    assert.deepEqual(git(["--git-dir", repo.gitDir, "ls-tree", "-r", "--name-only", deleted]).split("\n"), [".gitignore", "package.json", "receiver.txt", "record-store-worker/.gitignore"]);
     assert.equal(git(["--git-dir", repo.gitDir, "rev-parse", `${deleted}^`]), commit);
     assert.equal(git(["rev-parse", "HEAD"], f.top), f.initial);
     assert.deepEqual(readFileSync(join(f.top, ".git", "index")), originalIndex);
@@ -181,4 +192,20 @@ test("Receiver network commands pin main, disable force/recursion and validate t
   assert.throws(() => pushTimeout({ TRUSTLINK_GIT_PUSH_TIMEOUT_MS: "0" }), /TIMEOUT/);
   assert.throws(() => main(["commit-push-all", "protocol", "origin", "main"], "missing"), /Usage/);
   assert.throws(() => main(["fetch", "receiver", "origin", "other"], "missing"), /Usage/);
+});
+
+test("forced staging cannot bypass private-directory, secret-file and state guards", () => {
+  const f = fixture();
+  try {
+    const repo = openRepository(f.root);
+    for (const name of privateFiles) {
+      mkdirSync(resolve(f.root, name, ".."), { recursive: true });
+      writeFileSync(join(f.root, name), "synthetic-private\n");
+      git(["--git-dir", repo.gitDir, "--work-tree", f.root, "add", "--force", "--", name], f.root);
+      assert.throws(() => checkPrivateTree(repo, git(["--git-dir", repo.gitDir, "write-tree"])), /private configuration/, name);
+      git(["--git-dir", repo.gitDir, "--work-tree", f.root, "rm", "--cached", "--", name], f.root);
+    }
+    for (const name of [".env.example", "nested/.env.sample", ".env.template", "wrangler.example.toml", "schema.sql", "initialize-empty.sql", "src/worker.mjs"]) assert.equal(isPrivatePath(name), false, name);
+    for (const name of privateFiles) assert.equal(isPrivatePath(name), true, name);
+  } finally { f.dispose(); }
 });

@@ -23,3 +23,35 @@ coverage/
 
 # Protected local manifest, records, journals, backups, temporary files and locks.
 .receiver-store*
+
+# Protect secrets and state even in an independent Receiver checkout.
+*.env
+*.env.*
+!.env.example
+!.env.sample
+!.env.template
+.dev.vars
+.dev.vars.*
+private/
+private-state/
+secrets/
+.secrets/
+credentials/
+.credentials/
+.keys/
+.creds/
+.creds_example/
+keys/
+.node-cache/
+.mempool-store*
+operator-state*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.import.sql
+*.export.sql
+receiver-export*.json
+*.sqlite
+*.sqlite3
+*.db

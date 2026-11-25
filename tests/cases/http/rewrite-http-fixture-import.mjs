@@ -12,4 +12,7 @@ export function rewriteHttpFixtureImport(context,match,prefix,quote,specifier){
   if(!source.startsWith(context.root+path.sep)||(!source.includes(path.sep+"lib"+path.sep+"http"+path.sep)&&source!==readinessProjection&&source!==fundingLeaseFilter&&source!==tinDebitReplacement&&source!==resolvedNonExecution&&!pureContracts.includes(source)))throw new Error("HTTP_FIXTURE_IMPORT_OUTSIDE_ROUTE_COMPONENTS: "+path.relative(context.root,source));
   context.pending.push(source);
   const target=path.join(context.directory,path.relative(context.root,source)).replace(/\.ts$/,".mjs");
-  let relative=path.relative(path.dirname(context.destination),target).replaceAll("\\"
+  let relative=path.relative(path.dirname(context.destination),target).replaceAll("\\","/");
+  if(!relative.startsWith("."))relative="./"+relative;
+  return prefix+quote+relative+quote;
+}

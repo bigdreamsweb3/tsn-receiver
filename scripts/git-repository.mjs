@@ -117,11 +117,17 @@ export function fetchReceiver(repo, run = spawnSync, allowEmpty = false) {
   return checked(git(repo, ["rev-parse", "refs/remotes/origin/main"]), "Receiver fetched commit inspection");
 }
 
+export function isPrivatePath(path) {
+  // A template inside a private directory still contains private material.
+  if (/(?:^|\/)(?:private|private-state|secrets|\.secrets|credentials|\.credentials|\.creds|\.creds_example|\.fb_creds|\.keys|keys|\.node-cache)(?:\/|$)/i.test(path)) return true;
+  if (/(?:^|\/)\.env\.(?:example|sample|template)$/.test(path)) return false;
+  return /(?:^|\/)(?:\.env(?:\..*)?|[^/]+\.env(?:\..*)?|\.dev\.vars(?:\..*)?|.*keypair.*\.json|.*\.service-account\.json|.*firebase-adminsdk.*\.json|\.receiver-store[^/]*|\.mempool-store[^/]*|operator-state[^/]*\.json|receiver-export[^/]*\.json|wrangler\.toml|[^/]*\.(?:pem|key|p12|pfx|import\.sql|export\.sql|sqlite|sqlite3|db))(?:\/|$)/i.test(path);
+}
+
 export function checkPrivateTree(repo, tree) {
   const paths = checked(git(repo, ["ls-tree", "-r", "--name-only", "-z", tree]), "Receiver snapshot inspection").split("\0").filter(Boolean);
   for (const path of paths) {
-    if (/(?:^|\/)\.env\.(?:example|sample|template)$/.test(path)) continue;
-    if (/(?:^|\/)(?:\.env(?:\..*)?|\.fb_creds|.*[-_]keypair\.json|.*\.service-account\.json|.*firebase-adminsdk.*\.json|\.receiver-store[^/]*)(?:\/|$)/i.test(path)) throw new Error("Receiver snapshot contains a private configuration/state filename; nothing was pushed.");
+    if (isPrivatePath(path)) throw new Error("Receiver snapshot contains a private configuration/state filename; nothing was pushed.");
   }
 }
 
