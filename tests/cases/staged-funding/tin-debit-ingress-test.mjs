@@ -58,7 +58,29 @@ export async function tinDebitIngressTest(fixture) {
   const secondPayload={...payload,paymentId:"second-private-debit"};
   await context.receive({id:secondPayload.paymentId,kind:"TIN_DEBIT",payload:secondPayload});
   assert.equal(await context.leaseNode("synthetic-node",["TIN_DEBIT"]),null);
-  const cranker=await context.leaseCranker("synthetic-cranker",["TIN_DEBIT"]);
+  const operator = "synthetic-cranker";
+  const responseToCranker = await context.postCrankerWork({ ...context.dependencies,
+    NextResponse: { json: (data, options) => ({ data, status: options?.status ?? 200 }) },
+    authenticateCrankerRequest: async () => operator,
+    enforceCrankerLeaseRateLimit: async () => {},
+    leaseForCranker: context.leaseCranker,
+    requestNodeAuthorization: async (path, body) => {
+      assert.equal(path, "/internal/settlement-authorizations/settlement");
+      assert.deepEqual(body, { workId: verified.id, crankerPubkey: operator });
+      const { crankerLease, stateVersion } = await readWork(context, body.workId);
+      return { configured: true, response: Response.json({ kind: "TSN_TCAP_GPRU_TIN_DEBIT_AUTHORIZATION_V1", transition,
+        workStateVersion: stateVersion, leaseId: crankerLease.leaseId, leaseVersion: crankerLease.version,
+        leaseExpiresAt: crankerLease.expiresAt, expiresAtTs: Math.floor(Date.parse(crankerLease.expiresAt) / 1000) }) };
+    },
+    attachCrankerAuthorization: params => context.dependencies.db.runTransaction(
+      context.attachCrankerAuthorizationTransaction.bind(null, context.dependencies.workCollection.doc(params.id), params)),
+  }, { text: async () => JSON.stringify({ supportedKinds: ["TIN_DEBIT"] }) });
+  assert.equal(responseToCranker.status, 200, JSON.stringify(responseToCranker.data));
+  const cranker = responseToCranker.data.work;
   assert.equal(cranker.id,verified.id);
   assert.ok(Date.parse(cranker.crankerLease.expiresAt)-Date.now()>170000);
+  assert.equal(cranker.authorization.leaseVersion, cranker.crankerLease.version);
+  assert.deepEqual(cranker.authorization.transition, cranker.verification.verifiedPayload.tcapTinDebitTransition);
+  assert.deepEqual((await readWork(context, cranker.id)).authorization, cranker.authorization);
+  assert.deepEqual(cranker.payload, {});
 }

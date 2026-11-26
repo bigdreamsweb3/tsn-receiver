@@ -1,5 +1,6 @@
 /** Stable Next route facade; implementations are bound at this request boundary. */
 export const runtime = "nodejs";
+export const maxDuration = 180;
 import { dependencies } from "../../../../lib/http/api/cranker/work/runtime";
 import { PUT as PUTComponent } from "../../../../lib/http/api/cranker/work/PUT";
 export const PUT = PUTComponent.bind(null, dependencies);

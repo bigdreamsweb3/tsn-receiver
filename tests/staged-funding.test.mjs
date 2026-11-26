@@ -42,5 +42,5 @@ test("Node work HTTP validates the optional signed-funding filter before the per
 test("authorization and signed-funding lanes claim disjoint work without blocking each other", independentFundingLanesTest.bind(null, fixture));
 test("signed-funding reclamation rechecks the persisted phase while ordinary reclamation remains unchanged", signedFundingReclamationRaceTest.bind(null, fixture));
 
-test("TIN-Debit ingress encrypts openings and preserves identical retries", tinDebitIngressTest.bind(null, fixture));
-test("TIN-Debit public status releases only rejection before any execution attempt", tinDebitStatusTest.bind(null, fixture));
+test("TIN-Debit ingress encrypts openings, preserves identical retries and attaches the current lease authorization", tinDebitIngressTest.bind(null, fixture));
+test("TIN-Debit public status releases exact pre-signing stops and fences uncertain failures", tinDebitStatusTest.bind(null, fixture));

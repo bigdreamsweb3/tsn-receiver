@@ -19,7 +19,7 @@ export async function POST(dependencies: Pick<Dependencies, "NATIVE_REVERIFY_REA
             supportedKinds?: Parameters<typeof leaseForCranker>[1];
         };
         let work = await dependencies.leaseForCranker(operator, body.supportedKinds);
-        if (work && ["SETTLEMENT", "TCAP_EPOCH_ACCOUNTING"].includes(work.kind)) {
+        if (work && ["SETTLEMENT", "TIN_DEBIT", "TCAP_EPOCH_ACCOUNTING"].includes(work.kind)) {
             const { configured, response } = await dependencies.requestNodeAuthorization("/internal/settlement-authorizations/settlement", { workId: work.id, crankerPubkey: operator });
             if (!configured)
                 throw new Error("TSN Node authorization service is not configured");

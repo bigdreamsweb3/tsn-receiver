@@ -10,6 +10,7 @@ export async function createStagedFixture() {
   await compileReceiverFixture(directory, [
     "work-contract.ts", "work/receive.ts", "work/attach-signed-funding.ts",
     "work/getWorkForNode.ts", "work/leaseForNode.ts", "work/leaseForCranker.ts", "work/transition.ts",
+    "work/attach-cranker-authorization-transaction.ts", "http/api/cranker/work/POST.ts",
     "storage/local/local-db.ts", "storage/local/create-store-context.ts",
     "security/node-envelope/encrypt-payload-for-node.ts", "security/node-envelope/decrypt-payload-for-node.ts",
     "security/node-attestation/assert-node-verification-attestation.ts", "state/node-key-value/execute-state-operation.ts",
@@ -36,10 +37,12 @@ export async function createStagedFixture() {
   const { POST: postSignedFunding } = await load("http/api/internal/node/work/funding/POST");
   const { POST: postWork } = await load("http/api/work/POST");
   const { POST: postNodeWork } = await load("http/api/internal/node/work/POST");
+  const { POST: postCrankerWork } = await load("http/api/cranker/work/POST");
+  const { attachCrankerAuthorizationTransaction } = await load("work/attach-cranker-authorization-transaction");
   const { claimWorkTransaction } = await load("work/claim-work-transaction");
   const { reclaimExpiredWorkLease } = await load("work/reclaim-expired-work-lease");
   return { directory, contract, LocalDb, createStoreContext, encryptPayloadForNode, decryptPayloadForNode,
     assertNodeVerificationAttestation, nodeCommitment, attestationMessage, receive, attachSignedFunding,
     getWorkForNode, leaseForNode, leaseForCranker, transition, executeStateOperation, getPublicStatus, postSignedFunding,
-    postNodeWork, postWork, claimWorkTransaction, reclaimExpiredWorkLease };
+    postNodeWork, postWork, postCrankerWork, attachCrankerAuthorizationTransaction, claimWorkTransaction, reclaimExpiredWorkLease };
 }
