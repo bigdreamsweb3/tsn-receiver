@@ -154,11 +154,20 @@ export async function caseRepairedSettlementRetryIsAuthenticatedVersionedFundedA
         const staleRejection = { ...settlement, verification: { reason: FUNDED_ROOT_STALE } };
         assert.equal(snapshotRetryPatch(staleRejection, funding, 3, "test").status, "RECEIVED");
         assert.throws(retryUnrecognizedFundingReason.bind(null, snapshotRetryPatch, staleRejection, FUNDED_ROOT_STALE, funding), /REASON_NOT_ALLOWED/);
+        const tipReason = "TIP creation transaction version or signature is invalid";
+        const tipRejected = { ...settlement, verification: { reason: tipReason } };
+        const tipPatch = snapshotRetryPatch(tipRejected, funding, tipRejected.stateVersion, "test");
+        assert.equal(tipPatch.status, "RECEIVED");
+        assert.equal(tipPatch.stateVersion, tipRejected.stateVersion + 1);
+        assert.deepEqual(tipPatch.retryHistory[0].rejection, tipRejected.verification);
+        assert.equal(tipPatch.retryHistory[0].fundingSignature, funding.result.signature);
+        assert.throws(retryUnrecognizedFundingReason.bind(null, snapshotRetryPatch, tipRejected, tipReason, funding), /REASON_NOT_ALLOWED/);
+        assert.throws(retryChangedSnapshot.bind(null, snapshotRetryPatch, { ...tipRejected, result: { signature: "possibly-broadcast" } }, funding), /HAS_EXECUTION_STATE/);
         const transition = { fundingRootAccount: "mock-canonical-root", nullifier: "04".repeat(32), proof: { publicInputs: Array(13).fill("05".repeat(32)) } };
         const leased = { ...settlement, status: "CRANKER_LEASED", stateVersion: 9, retryHistory: memoAfter.retryHistory,
             verification: { verificationType: "TSN_TCAP_GPRU_HIDDEN_HEAD_V1", payloadDelta: { addedFields: { tcapCreditTransition: transition }, changedFields: {}, removedFields: [] } },
             crankerLease: { owner: "mock-cranker", leaseId: id, version: 8, expiresAt: new Date(Date.now() + 60000).toISOString() },
-            authorization: { kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3", transition }, result: null };
+            authorization: { kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V1", transition }, result: null };
         const retryPatch = fundedRootRetryPatch(leased, funding, 9, "mock-cranker", "test");
         assert.equal(retryPatch.status, "RECEIVED");
         assert.equal(retryPatch.retryHistory.at(-1).reason, FUNDED_ROOT_STALE);

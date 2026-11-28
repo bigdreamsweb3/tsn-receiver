@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { WorkKind, WorkCreationDependencies } from "./models";
 
+export const TIN_CREDIT_AUTHORIZATION_KIND = "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V1";
+export const TIN_CREDIT_SIGNED_STAGE = "TCAP_GPRU_MEMO_CREDIT_V1_SIGNED";
+export const TIN_CREDIT_CONFIRMED_STAGE = "TCAP_GPRU_MEMO_CREDIT_V1_CONFIRMED";
+export const HISTORICAL_TIN_CREDIT_AUTHORIZATION_KIND = "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3";
+export const HISTORICAL_TIN_CREDIT_SIGNED_STAGE = "TCAP_GPRU_MEMO_CREDIT_V2_SIGNED";
+
 export const AUTHORIZED_FUNDING_KEYS = new Set([
   "paymentId", "intentSeedHash", "recipientHash", "recipientTin",
   "tokenMintAddress", "amount", "recipientAmount", "senderWallet", "senderAuthorizationMessage",

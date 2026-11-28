@@ -48,6 +48,7 @@ export async function caseExpiredFailedCreditResolvesOnlyWithAnUnchangedFinalize
         const { db, workCollection } = await load("database");
         const { payloadCommitment, createReceivedWork, hasResolvedNonExecution } = await load("work-contract");
         const { resolveFailedSettlement } = await load("failed-settlement-resolution");
+        const { assertEligible } = await load("recovery/nonexecution/assert-eligible");
         const { leaseForNode } = await load("store");
         const { POST } = await load("route");
         const { GET: getPublicStatus } = await load("http/api/work-status/by-id/GET");
@@ -57,13 +58,18 @@ export async function caseExpiredFailedCreditResolvesOnlyWithAnUnchangedFinalize
         const funding = { ...createReceivedWork({ id: "funded-old", kind: "AUTHORIZED_FUNDING", payload: { paymentId: "old-payment" } }), status: "CONFIRMED", stateVersion: 5, result: { signature: "confirmed-funding" } };
         const id = `settlement-${createHash("sha256").update(`${funding.id}:${funding.payloadCommitment}`).digest("hex").slice(0, 32)}`;
         const signature = "4je4ACJRGaRfWzrHSRVw7k99KWp4pSGrdaPMcwcj7mhBDAsdLAkyF2RwJ8Tm5YChU6CyaadsLGd6YYyaCqKWrbqn";
-        const transition = { commitmentRoot: rootAddress.toBase58(), previousTcapRoot: "aa".repeat(32), tcapRootSequence: "6", validAfterSlot: "850", expiresAtSlot: "900",
+        const [fundingRoot] = PublicKey.findProgramAddressSync([Buffer.from("tcap:funding-root:v1")], TCAP);
+        const transition = { commitmentRoot: rootAddress.toBase58(), fundingRootAccount: fundingRoot.toBase58(), previousTcapRoot: "aa".repeat(32), tcapRootSequence: "6", validAfterSlot: "850", expiresAtSlot: "900",
             proof: { publicInputs: ["aa".repeat(32), ...Array(12).fill("bb".repeat(32))] }, memoPayload: "synthetic encrypted Memo" };
         const work = { ...createReceivedWork({ id, kind: "SETTLEMENT", payload: { intentId: funding.id, paymentId: funding.payload.paymentId } }), status: "FAILED", stateVersion: 303,
             verification: { verificationType: "TSN_TCAP_GPRU_HIDDEN_HEAD_V1", payloadDelta: { addedFields: { tcapCreditTransition: transition }, changedFields: {}, removedFields: [] } },
             authorization: { kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3", transition, workStateVersion: 301, leaseId: id, leaseVersion: 301, leaseExpiresAt: new Date(0).toISOString() },
             result: { signature, blockhash: "AtsZHJL9F6j7kpmW3DQ4Sy25WZXTdbRYUiXFCBRgXtCd", lastValidBlockHeight: "500", wireSha256: "cc".repeat(32), wireBytes: 2909, stage: "TCAP_GPRU_MEMO_CREDIT_V2_SIGNED", reason: "historical preflight rejection" },
             retryHistory: [{ reason: "retained original history" }], nodeLease: null, crankerLease: null };
+        const currentWork = { ...work, authorization: { ...work.authorization, kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V1" },
+            result: { ...work.result, stage: "TCAP_GPRU_MEMO_CREDIT_V1_SIGNED" } };
+        assert.deepEqual(assertEligible({ clock: Date }, currentWork, funding, work.stateVersion, signature), transition);
+        assert.throws(() => assertEligible({ clock: Date }, { ...currentWork, result: work.result }, funding, work.stateVersion, signature), /INVALID_CHECKPOINT/);
         const nextFunding = { ...funding, id: "funded-next" };
         const next = createReceivedWork({ id: "new-settlement", kind: "SETTLEMENT", payload: { intentId: nextFunding.id } });
         const rootData = Buffer.alloc(124);

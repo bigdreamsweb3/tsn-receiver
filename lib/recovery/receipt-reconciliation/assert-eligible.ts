@@ -2,12 +2,20 @@ import type { Dependencies } from "./dependencies";
 import { payloadCommitment } from "../../work-contract";
 import type { ReceiverWork } from "../../work-contract";
 import { hash } from "./hash";
+import { HISTORICAL_TIN_CREDIT_AUTHORIZATION_KIND, HISTORICAL_TIN_CREDIT_SIGNED_STAGE, TIN_CREDIT_AUTHORIZATION_KIND, TIN_CREDIT_SIGNED_STAGE } from "../../contracts/constants";
+import { hasHistoricalTinCreditCheckpoint } from "../../contracts/recovery/has-historical-tin-credit-checkpoint";
 
 /** assertEligible component. Inputs and results retain the original settlement-reconciliation contract; declared dependencies identify replaceable ports. Errors propagate in their original order. */
 export function assertEligible(dependencies: Pick<Dependencies, "clock">, work: ReceiverWork, funding: ReceiverWork | null, expectedVersion: number, reportOwner?: string) {
   const native = work.kind === "SETTLEMENT";
-  const expectedKind = native ? "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3" : work.kind === "TIN_DEBIT" ? "TSN_TCAP_GPRU_TIN_DEBIT_AUTHORIZATION_V1" : "TSN_TCAP_COORDINATION_AUTHORIZATION_V1";
-  const expectedStage = {SETTLEMENT:"TCAP_GPRU_MEMO_CREDIT_V2_SIGNED",TCAP_EPOCH_ACCOUNTING:"TCAP_EPOCH_ACCOUNTING_V1_SIGNED",TIN_DEBIT:"TCAP_GPRU_TIN_DEBIT_V1_SIGNED"}[work.kind as "SETTLEMENT"|"TCAP_EPOCH_ACCOUNTING"|"TIN_DEBIT"];
+  const historical = hasHistoricalTinCreditCheckpoint(work);
+  const creditKind = historical ? HISTORICAL_TIN_CREDIT_AUTHORIZATION_KIND : TIN_CREDIT_AUTHORIZATION_KIND;
+  const expectedKind = native ? creditKind : work.kind === "TIN_DEBIT" ? "TSN_TCAP_GPRU_TIN_DEBIT_AUTHORIZATION_V1" : "TSN_TCAP_COORDINATION_AUTHORIZATION_V1";
+  const expectedStage = {
+    SETTLEMENT: historical ? HISTORICAL_TIN_CREDIT_SIGNED_STAGE : TIN_CREDIT_SIGNED_STAGE,
+    TCAP_EPOCH_ACCOUNTING: "TCAP_EPOCH_ACCOUNTING_V1_SIGNED",
+    TIN_DEBIT: "TCAP_GPRU_TIN_DEBIT_V1_SIGNED",
+  }[work.kind as "SETTLEMENT" | "TCAP_EPOCH_ACCOUNTING" | "TIN_DEBIT"];
   if (!expectedStage) throw new Error("SETTLEMENT_RECONCILIATION_KIND_INVALID");
   if (reportOwner) {
     const auth = work.authorization;

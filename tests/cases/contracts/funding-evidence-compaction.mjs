@@ -12,7 +12,7 @@ export function caseFundingEvidenceCompaction(compactAuthorizedFundingVerificati
     const payload = { paymentId: "p", recipientHash: "h", tokenMintAddress: "m", amount: 1 };
     const senderFundingBlockhashContext = { blockhash: "11111111111111111111111111111112", lastValidBlockHeight: 150, contextSlot: 0 };
     const compact = compactAuthorizedFundingVerification(payload, {
-        verificationType: "TSN_TCAP_V2_GPRU_CREDIT_INTENT",
+        verificationType: "TSN_TCAP_GPRU_CREDIT_INTENT_V1",
         verifiedPayload: {
             ...payload,
             recipientTin: "1234567890",

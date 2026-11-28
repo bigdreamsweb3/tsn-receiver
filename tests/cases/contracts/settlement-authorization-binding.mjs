@@ -12,11 +12,15 @@ import { caseRejectUnverifiedTransition } from "./reject-unverified-transition.m
 export function caseSettlementAuthorizationBinding(createReceivedWork, fundingNoteFixture, crankerAuthorizationForWork) {
     const transition = { proof: { publicInputs: Array(13).fill("public") }, fundingRootAccount: "public-root-account", tokenId: 1 };
     const work = { ...createReceivedWork({ kind: "SETTLEMENT", payload: { intentId: "funding" } }), verification: { verifiedPayload: { tcapCreditTransition: transition } } };
-    const authorization = { kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3", leaseId: "lease", leaseVersion: 3,
+    const authorization = { kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V1", leaseId: "lease", leaseVersion: 3,
         transition: { ...transition, fundingNote: fundingNoteFixture, proof: { ...transition.proof, secret: "private" } }, fundingNote: fundingNoteFixture };
     const sanitized = crankerAuthorizationForWork(work, authorization);
     assert.deepEqual(sanitized, { kind: authorization.kind, leaseId: "lease", leaseVersion: 3, transition });
     assert.doesNotMatch(JSON.stringify(sanitized), /fundingNote|secret|blinding/);
+    assert.throws(() => crankerAuthorizationForWork(work, { ...authorization, kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3" }), /RETIRED_CREDIT_AUTHORIZATION/);
+    const legacyTransition = { ...transition, proof: { publicInputs: Array(12).fill("public") } };
+    const legacyWork = { ...work, verification: { verifiedPayload: { tcapCreditTransition: legacyTransition } } };
+    assert.throws(() => crankerAuthorizationForWork(legacyWork, { ...authorization, transition: legacyTransition }), /TRANSITION_MISMATCH/);
     for (const changed of [{ ...transition, tokenId: 2 }, { ...transition, fundingRootAccount: "another-root" }, { ...transition, proof: { publicInputs: Array(12).fill("public") } }]) {
         assert.throws(caseRejectChangedVerifiedTransition.bind(null, crankerAuthorizationForWork, work, authorization, changed), /TRANSITION_MISMATCH/);
     }

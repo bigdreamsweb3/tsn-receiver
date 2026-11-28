@@ -4,6 +4,9 @@ import { PublicKey } from "@solana/web3.js";
 import { crankerAuthorizationForWork } from "../../work-contract";
 import { payloadCommitment } from "../../work-contract";
 import type { ReceiverWork } from "../../work-contract";
+import { HISTORICAL_TIN_CREDIT_AUTHORIZATION_KIND, HISTORICAL_TIN_CREDIT_SIGNED_STAGE, TIN_CREDIT_AUTHORIZATION_KIND, TIN_CREDIT_SIGNED_STAGE } from "../../contracts/constants";
+import { projectTinCreditAuthorization } from "../../contracts/projection/cranker-authorization-for-work";
+import { hasHistoricalTinCreditCheckpoint } from "../../contracts/recovery/has-historical-tin-credit-checkpoint";
 import { fail } from "./fail";
 import { u64 } from "./u64";
 import { ROOT } from "./configuration";
@@ -12,12 +15,15 @@ import { ROOT } from "./configuration";
 export function assertEligible(dependencies: Pick<Dependencies, "clock">, work: ReceiverWork, funding: ReceiverWork | undefined, expectedVersion: number, signature: string) {
   if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1 || expectedVersion >= Number.MAX_SAFE_INTEGER || work.stateVersion !== expectedVersion) throw new Error("STALE_STATE_VERSION");
   const debit = work.kind === "TIN_DEBIT";
+  const historical = hasHistoricalTinCreditCheckpoint(work);
+  const creditKind = historical ? HISTORICAL_TIN_CREDIT_AUTHORIZATION_KIND : TIN_CREDIT_AUTHORIZATION_KIND;
+  const creditStage = historical ? HISTORICAL_TIN_CREDIT_SIGNED_STAGE : TIN_CREDIT_SIGNED_STAGE;
   if ((!debit && work.kind !== "SETTLEMENT") || work.status !== "FAILED" || work.nodeLease || work.crankerLease || work.nonExecutionResolution
-      || work.authorization?.kind !== (debit ? "TSN_TCAP_GPRU_TIN_DEBIT_AUTHORIZATION_V1" : "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3")
+      || work.authorization?.kind !== (debit ? "TSN_TCAP_GPRU_TIN_DEBIT_AUTHORIZATION_V1" : creditKind)
       || work.verification?.verificationType !== (debit ? "TSN_TIN_DEBIT_V1" : "TSN_TCAP_GPRU_HIDDEN_HEAD_V1")) fail("NOT_FAILED_NATIVE_CREDIT");
   const result = work.result;
   if (!result || result.signature !== signature || !/^[1-9A-HJ-NP-Za-km-z]{86,88}$/.test(signature)
-      || result.stage !== (debit ? "TCAP_GPRU_TIN_DEBIT_V1_SIGNED" : "TCAP_GPRU_MEMO_CREDIT_V2_SIGNED") || !/^[a-f0-9]{64}$/.test(String(result.wireSha256))
+      || result.stage !== (debit ? "TCAP_GPRU_TIN_DEBIT_V1_SIGNED" : creditStage) || !/^[a-f0-9]{64}$/.test(String(result.wireSha256))
       || !Number.isSafeInteger(result.wireBytes) || Number(result.wireBytes) < 170 || Number(result.wireBytes) > 4096) return fail("INVALID_CHECKPOINT");
   try {
     const blockhash = new PublicKey(String(result.blockhash));
@@ -29,7 +35,8 @@ export function assertEligible(dependencies: Pick<Dependencies, "clock">, work: 
       || auth.leaseVersion !== auth.workStateVersion || auth.leaseId !== work.id
       || !Number.isFinite(dependencies.clock.parse(String(auth.leaseExpiresAt))) || dependencies.clock.parse(String(auth.leaseExpiresAt)) > dependencies.clock.now()) fail("INVALID_AUTHORIZATION");
   // Reuse the canonical public projection; never revive a historical executor.
-  const t = crankerAuthorizationForWork(work, auth).transition as Record<string, any>;
+  const projected = debit ? crankerAuthorizationForWork(work, auth) : projectTinCreditAuthorization(work, auth);
+  const t = projected.transition as Record<string, any>;
   if (!t || t.commitmentRoot !== ROOT.toBase58() || !/^[a-f0-9]{64}$/.test(String(t.previousTcapRoot))
       || !Array.isArray(t.proof?.publicInputs) || t.proof.publicInputs.length !== (debit ? 26 : 13)
       || t.proof.publicInputs[0] !== t.previousTcapRoot || u64(t.expiresAtSlot) < u64(t.validAfterSlot)) fail("INVALID_AUTHORIZATION");

@@ -5,7 +5,8 @@ import { TSNP, TCAP, TIP, GPRU } from "./configuration";
 
 /** Validate the exact signed debit statement, Memo pair and finalized shared root. */
 export function assertTinDebitReceipt(t: Record<string, any>, signature: string, slot: number, message: Buffer,
-    keys: PublicKey[], instructions: { program: PublicKey; keys: PublicKey[]; data: Buffer }[], authority: PublicKey, root: any) {
+    keys: PublicKey[], instructions: { program: PublicKey; keys: PublicKey[]; data: Buffer }[], authority: PublicKey, root: any,
+    savedWireMatches: boolean) {
   const names = ["authority", "motherEscrow", "tcapProgram", "tsnProgram", "config", "assetEntry", "commitmentRoot", "reserveState", "authorizationSigner", "tipRouteRoot", "tinDebitVerifier", "instructions", "gpruProgram"];
   const expectedKeys = names.map(name => new PublicKey(t[name]));
   const derive = (program: PublicKey, seed: string, ...extra: Buffer[]) => PublicKey.findProgramAddressSync([Buffer.from(seed), ...extra], program)[0];
@@ -15,7 +16,10 @@ export function assertTinDebitReceipt(t: Record<string, any>, signature: string,
     derive(GPRU, "gpru:tin-debit-verifier:v1"), new PublicKey("Sysvar1nstructions1111111111111111111111111"), GPRU];
   const proof = t.proof;
   if (!Array.isArray(proof?.publicInputs) || proof.publicInputs.length !== 26 || !expectedKeys.every((key, index) => key.equals(canonical[index]))) throw new Error("TIN_DEBIT_RECEIPT_ACCOUNTS_INVALID");
-  const expected = Buffer.concat([hash("global:tsn_register_tcap_tin_debit_authorization_v1").subarray(0, 8), bytes(t.authorizationDigest, 32),
+  const previousSelector = hash("global:tsn_register_tcap_tin_debit_authorization_v1").subarray(0, 8);
+  const hasSavedPreviousInstruction = savedWireMatches && instructions[0].data.subarray(0, 8).equals(previousSelector);
+  const selector = hasSavedPreviousInstruction ? previousSelector : hash("global:tin_debit_v1").subarray(0, 8);
+  const expected = Buffer.concat([selector, bytes(t.authorizationDigest, 32),
     ...proof.publicInputs.map((value: string) => bytes(value, 32)), bytes(proof.proofA, 64), bytes(proof.proofB, 128), bytes(proof.proofC, 64)]);
   if (!instructions[0].program.equals(TSNP) || !instructions[0].data.equals(expected) || instructions[0].keys.length !== 13
       || !instructions[0].keys.every((key, index) => key.equals(expectedKeys[index])) || message[2] !== 1 || !keys[1].equals(authority)) throw new Error("TIN_DEBIT_RECEIPT_STATEMENT_INVALID");

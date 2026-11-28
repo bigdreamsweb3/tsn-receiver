@@ -28,6 +28,7 @@ import { throwsCase19 } from "./throws-case19.mjs";
 import { throwsCase20 } from "./throws-case20.mjs";
 import { throwsCase21 } from "./throws-case21.mjs";
 import { throwsCase22 } from "./throws-case22.mjs";
+import { verifyTinDebitReceiptSelectors } from "./verify-tin-debit-receipt-selectors.mjs";
 import { scalarComponent } from "./scalar-component.mjs";
 import { mapCase24 } from "./map-case24.mjs";
 import { filterCase25 } from "./filter-case25.mjs";
@@ -105,23 +106,36 @@ export async function verifyFinalizedReceiptRepairPreservesFundingRejectsMismatc
         verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.fundingRootAccount = pda("tcap:funding-root:v1", verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TCAP).toBase58();
         verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.accountingEpoch = PublicKey.findProgramAddressSync([Buffer.from("tcap:credit-epoch:v1"), new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.assetEntry).toBuffer(), uint(0, 8)], verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TCAP)[0].toBase58();
         verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.work = { ...createReceivedWork({ id: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.id, kind: "SETTLEMENT", payload: { intentId: funding.id, paymentId: "fixture" } }), status: "FAILED", stateVersion: 28,
-            authorization: { kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3", transition: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t }, result: { reason: "WebSocket failed to connect" }, retryHistory: [{ rejectedStateVersion: 3 }] };
+            authorization: { kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V1", transition: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t }, result: { reason: "WebSocket failed to connect" }, retryHistory: [{ rejectedStateVersion: 3 }] };
         const ixKeys = [verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.authority, pda("tsn_mother_escrow", verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TSNP), verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TCAP, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TSNP, new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.tcapConfig), new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.assetEntry), new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.commitmentRoot), new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.reserveState), PublicKey.findProgramAddressSync([Buffer.from("tsn:tcap-authorization:v1"), Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.authorizationDigest, "hex")], verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TSNP)[0], pda("tip:route-merkle-root:v1", TIP), pda("gpru:hidden-head-verifier:v1", GPRU), new PublicKey("Sysvar1nstructions1111111111111111111111111"), GPRU, new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.fundingRootAccount), new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.accountingEpoch), PublicKey.default];
         const memoProgram = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
         verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.keys = [verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.payer, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.authority, new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.commitmentRoot), new PublicKey(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.accountingEpoch), ...ixKeys.filter(filterCase.bind(null, {
                 verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext
             })), memoProgram].filter(filterCase12);
         const proof = verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.proof;
-        const data = Buffer.concat([hash("global:tsn_register_tcap_credit_authorization_v3").subarray(0, 8), Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.authorizationDigest, "hex"), uint(1, 8), uint(500, 8), Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.previousTcapRoot, "hex"), uint(1, 8), uint(1, 4), Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.amountCommitment, "hex"), Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.nullifier, "hex"), ...proof.publicInputs.map(mapCase14), Buffer.alloc(256), uint(1, 1), uint(1, 4), Buffer.from(proof.amountCommitment, "hex"), Buffer.from(proof.authorizationCommitment, "hex")]);
+        const creditArgs = Buffer.concat([Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.authorizationDigest, "hex"), uint(1, 8), uint(500, 8), Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.previousTcapRoot, "hex"), uint(1, 8), uint(1, 4), Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.amountCommitment, "hex"), Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.nullifier, "hex"), ...proof.publicInputs.map(mapCase14), Buffer.alloc(256), uint(1, 1), uint(1, 4), Buffer.from(proof.amountCommitment, "hex"), Buffer.from(proof.authorizationCommitment, "hex")]);
         const memo = Buffer.from(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.t.memoPayload);
         const idx = idxComponent.bind(null, {
             verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext
         });
-        const message = Buffer.concat([Buffer.from([0x81, 2, 0, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.keys.length - 4]), uint(12, 4), Buffer.alloc(32), Buffer.from([2, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.keys.length]), ...verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.keys.map(publicKeyBytes), uint(1400000, 4), uint(64 * 1024 * 1024, 4), Buffer.from([idx(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TSNP), 16]), uint(data.length, 2), Buffer.from([idx(memoProgram), 1]), uint(memo.length, 2), Buffer.from(ixKeys.map(idx)), data, Buffer.from([0]), memo]);
-        const payerSig = sign(null, message, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.operatorKey.privateKey);
-        const motherSig = sign(null, message, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.motherKey.privateKey);
-        verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.signature = b58(payerSig);
-        verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.receipt = { version: 1, slot: 100, meta: { err: null }, transaction: [Buffer.concat([message, payerSig, motherSig]).toString("base64"), "base64"] };
+        const { keys, TSNP, operatorKey, motherKey } = verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext;
+        const creditMessagePrefix = Buffer.concat([
+            Buffer.from([0x81, 2, 0, keys.length - 4]), uint(12, 4), Buffer.alloc(32), Buffer.from([2, keys.length]),
+            ...keys.map(publicKeyBytes), uint(1400000, 4), uint(64 * 1024 * 1024, 4), Buffer.from([idx(TSNP), 16]),
+            uint(creditArgs.length + 8, 2), Buffer.from([idx(memoProgram), 1]), uint(memo.length, 2), Buffer.from(ixKeys.map(idx)),
+        ]);
+        const makeCreditReceipt = name => {
+            const selector = hash(`global:${name}`).subarray(0, 8);
+            const message = Buffer.concat([creditMessagePrefix, selector, creditArgs, Buffer.from([0]), memo]);
+            const payerSig = sign(null, message, operatorKey.privateKey);
+            const motherSig = sign(null, message, motherKey.privateKey);
+            const wire = Buffer.concat([message, payerSig, motherSig]);
+            return { signature: b58(payerSig), wire,
+                receipt: { version: 1, slot: 100, meta: { err: null }, transaction: [wire.toString("base64"), "base64"] } };
+        };
+        const currentCredit = makeCreditReceipt("tin_credit_v1");
+        verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.signature = currentCredit.signature;
+        verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.receipt = currentCredit.receipt;
         const motherData = Buffer.concat([hash("account:MotherEscrow").subarray(0, 8), verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.authority.toBuffer()]);
         verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.mother = { owner: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TSNP.toBase58(), data: [motherData.toString("base64"), "base64"] };
         const rootData = Buffer.alloc(124);
@@ -131,6 +145,20 @@ export async function verifyFinalizedReceiptRepairPreservesFundingRejectsMismatc
         uint(1, 8).copy(rootData, 80);
         verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.root = { owner: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TCAP.toBase58(), data: [rootData.toString("base64"), "base64"] };
         assert.equal(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.assertSettlementReceipt(verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.work, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.signature, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.receipt, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.mother, verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.root).slot, 100);
+        const { work, mother, root } = verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext;
+        const historicalCredit = makeCreditReceipt("tsn_register_tcap_credit_authorization_v3");
+        const historicalCheckpoint = { signature: historicalCredit.signature, stage: "TCAP_GPRU_MEMO_CREDIT_V2_SIGNED",
+            blockhash: PublicKey.default.toBase58(), wireBytes: historicalCredit.wire.length,
+            wireSha256: createHash("sha256").update(historicalCredit.wire).digest("hex") };
+        const historicalWork = { ...work, authorization: { ...work.authorization, kind: "TSN_TCAP_GPRU_CREDIT_AUTHORIZATION_V3" } };
+        const readHistoricalReceipt = candidate => assertSettlementReceipt(candidate, historicalCredit.signature, historicalCredit.receipt, mother, root);
+        assert.throws(() => readHistoricalReceipt(historicalWork), /SETTLEMENT_RECEIPT_AUTHORIZATION_MISMATCH/);
+        assert.throws(() => readHistoricalReceipt({ ...work, result: historicalCheckpoint }), /SETTLEMENT_RECEIPT_AUTHORIZATION_MISMATCH/);
+        assert.equal(readHistoricalReceipt({ ...historicalWork, result: historicalCheckpoint }).stage, "TCAP_GPRU_MEMO_CREDIT_V1_CONFIRMED");
+        assert.throws(() => readHistoricalReceipt({ ...historicalWork, result: { ...historicalCheckpoint, wireSha256: "ff".repeat(32) } }),
+            /SETTLEMENT_LATE_REPORT_SUBMISSION_MISMATCH/);
+        verifyTinDebitReceiptSelectors(assertSettlementReceipt, { TSNP, TCAP: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.TCAP,
+            TIP, GPRU, payer: keys[0], authority: keys[1], operatorKey, motherKey, mother });
         for (const changed of [{ ...verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.receipt, meta: { err: { InstructionError: [0, 1] } } }, { ...verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.receipt, version: 0 }, { ...verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.receipt, slot: null }]) {
             verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.changed = changed;
             assert.throws(throwsCase.bind(null, {
@@ -233,7 +261,9 @@ export async function verifyFinalizedReceiptRepairPreservesFundingRejectsMismatc
         await verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.db.runTransaction(runTransactionCase.bind(null, {
             verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext
         }));
-        const evidence = { signature: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.signature, blockhash: "11111111111111111111111111111111", lastValidBlockHeight: "1000", wireSha256: "ab".repeat(32), wireBytes: 2909, stage: "TCAP_GPRU_MEMO_CREDIT_V2_SIGNED" };
+        const evidence = { signature: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.signature, blockhash: "11111111111111111111111111111111", lastValidBlockHeight: "1000", wireSha256: "ab".repeat(32), wireBytes: 2909, stage: "TCAP_GPRU_MEMO_CREDIT_V1_SIGNED" };
+        await assert.rejects(recordSettlementSubmission({ id: work.id, owner: keys[0].toBase58(), expectedVersion: 28,
+            evidence: { ...evidence, stage: historicalCheckpoint.stage } }), /SETTLEMENT_SUBMISSION_INVALID/);
         await assert.rejects(recordSettlementSubmission({ id: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.id, owner: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.authority.toBase58(), expectedVersion: 28, evidence }), /LEASE_INVALID/);
         await recordSettlementSubmission({ id: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.id, owner: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.payer.toBase58(), expectedVersion: 28, evidence });
         await recordSettlementSubmission({ id: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.id, owner: verifyFinalizedReceiptRepairPreservesFundingRejectsMismatchesAndWakesOnlyContext.payer.toBase58(), expectedVersion: 28, evidence });

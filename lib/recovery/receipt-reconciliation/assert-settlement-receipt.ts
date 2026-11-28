@@ -3,6 +3,8 @@ import { createPublicKey } from "node:crypto";
 import { verify } from "node:crypto";
 import { PublicKey } from "@solana/web3.js";
 import type { ReceiverWork } from "../../work-contract";
+import { TIN_CREDIT_CONFIRMED_STAGE } from "../../contracts/constants";
+import { hasHistoricalTinCreditCheckpoint } from "../../contracts/recovery/has-historical-tin-credit-checkpoint";
 import { receiptPublicKey } from "./receipt-public-key";
 import { parseReceiptInstructions } from "./parse-receipt-instructions";
 import { hash } from "./hash";
@@ -55,7 +57,7 @@ export function assertSettlementReceipt(work: ReceiverWork, signature: string, r
   const motherData = Buffer.from(mother?.data?.[0] ?? "", "base64");
   if (mother?.owner !== TSNP.toBase58() || !motherData.subarray(0, 8).equals(hash("account:MotherEscrow").subarray(0, 8))) throw new Error("SETTLEMENT_RECEIPT_INVALID_MOTHER");
   const authority = new PublicKey(motherData.subarray(8, 40));
-  if (work.kind === "TIN_DEBIT") return assertTinDebitReceipt(t, signature, receipt.slot, message, keys, instructions, authority, root);
+  if (work.kind === "TIN_DEBIT") return assertTinDebitReceipt(t, signature, receipt.slot, message, keys, instructions, authority, root, Boolean(work.result?.signature));
   if (coordination) {
     let expectedKeys: PublicKey[], expected: Buffer, stage: string;
       expectedKeys = [authority,pda("tsn_mother_escrow",TSNP),new PublicKey(t.tcapConfig),new PublicKey(t.assetEntry),new PublicKey(t.reserveState),new PublicKey(t.accountingEpoch),pda("gpru:tcap-epoch-verifier:v1",GPRU),GPRU];
@@ -86,7 +88,10 @@ export function assertSettlementReceipt(work: ReceiverWork, signature: string, r
       || expectedKeys[13].toBase58() !== t.fundingRootAccount) throw new Error("SETTLEMENT_RECEIPT_ACCOUNTS_MISMATCH");
   const proof = t.proof;
   if (!Array.isArray(proof.publicInputs) || proof.publicInputs.length !== 13) throw new Error("SETTLEMENT_RECONCILIATION_INVALID_TRANSITION");
-  const expected = Buffer.concat([hash("global:tsn_register_tcap_credit_authorization_v3").subarray(0, 8), bytes(t.authorizationDigest, 32),
+  // A pre-cutover receipt may use the former selector only if its exact signed
+  // wire matched the durable signature, hash, size and blockhash above.
+  const selector = hasHistoricalTinCreditCheckpoint(work) ? "global:tsn_register_tcap_credit_authorization_v3" : "global:tin_credit_v1";
+  const expected = Buffer.concat([hash(selector).subarray(0, 8), bytes(t.authorizationDigest, 32),
     integer(t.validAfterSlot, 8), integer(t.expiresAtSlot, 8), bytes(t.previousTcapRoot, 32), integer(t.tcapRootSequence, 8),
     integer(t.tokenId, 4), bytes(t.amountCommitment, 32), bytes(t.nullifier, 32), ...proof.publicInputs.map(proofInputBytes),
     bytes(proof.proofA, 64), bytes(proof.proofB, 128), bytes(proof.proofC, 64), integer(proof.actionKind, 1), integer(proof.tokenId, 4),
@@ -104,6 +109,6 @@ export function assertSettlementReceipt(work: ReceiverWork, signature: string, r
       || rootData.readBigUInt64LE(80) < BigInt(t.tcapRootSequence)) throw new Error("SETTLEMENT_RECEIPT_ROOT_MISMATCH");
   if (rootData.readBigUInt64LE(80) === BigInt(t.tcapRootSequence)
       && (!rootData.subarray(12, 44).equals(bytes(proof.publicInputs[1], 32)) || !rootData.subarray(44, 76).equals(bytes(t.previousTcapRoot, 32)))) throw new Error("SETTLEMENT_RECEIPT_ROOT_MISMATCH");
-  return { signature, stage: "TCAP_GPRU_MEMO_CREDIT_V2_CONFIRMED", sequence: String(t.tcapRootSequence),
+  return { signature, stage: TIN_CREDIT_CONFIRMED_STAGE, sequence: String(t.tcapRootSequence),
     authorizationDigest: String(t.authorizationDigest), slot: receipt.slot, confirmationStatus: "finalized" };
 }

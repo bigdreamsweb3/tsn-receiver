@@ -1,6 +1,7 @@
 
 
 export const LEGACY_MEMO_INPUT_COUNT_REJECTION = "GPRU transaction record is missing its twelve public hidden-head inputs";
+export const TIP_CREATION_RECEIPT_REJECTION = "TIP creation transaction version or signature is invalid";
 export const FUNDED_ROOT_STALE = "TCAP_FUNDING_ROOT_CHANGED_BEFORE_SETTLEMENT";
 export const NATIVE_REVERIFY_REASONS = new Set([FUNDED_ROOT_STALE,
   "TSN_NODE_SIGNING_SERVICE_UNAVAILABLE",
