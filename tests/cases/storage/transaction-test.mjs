@@ -28,7 +28,7 @@ export async function transactionTest() {
     assert.equal(state.finished,true);assert.equal((await failed.get()).get("audit"),"snapshot-checked");
     assert.equal((await collection.doc("epoch-new").get()).get("status"),"CRANKER_LEASED");
     const before=await readFile(fixture.file,"utf8"),recordBefore=JSON.stringify((await failed.get()).data());
-    await assert.rejects(db.runTransaction(rejectedTransaction.bind(null,collection,failed)),/LOCAL_QUERY_OPERATOR_UNSUPPORTED: in/);
+    await assert.rejects(db.runTransaction(rejectedTransaction.bind(null,collection,failed)),/LOCAL_QUERY_OPERATOR_UNSUPPORTED: contains/);
     assert.equal(await readFile(fixture.file,"utf8"),before);assert.equal(JSON.stringify((await failed.get()).data()),recordBefore);
     await assert.rejects(access(fixture.file+".lock"),{code:"ENOENT"});
   }finally{await cleanupStorageFixture(fixture);}

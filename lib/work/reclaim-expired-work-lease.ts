@@ -25,4 +25,5 @@ export async function reclaimExpiredWorkLease(dependencies: Pick<WorkDependencie
         nodeLease: null,
         crankerLease: null,
     });
+    return true;
 }

@@ -8,11 +8,21 @@ import { workWithStatus } from "./workWithStatus";
 import { matchesFundingLeasePhase } from "./matches-funding-lease-phase";
 export async function lease(dependencies: Pick<WorkDependencies, "db" | "hasResolvedNonExecution" | "isSupportedWorkKind" | "randomInt" | "workCollection">, status: "RECEIVED" | "VERIFIED", next: "NODE_VERIFYING" | "CRANKER_LEASED", owner: string, supportedKinds?: WorkKind[], fundingPhase?: "AUTHORIZATION" | "SIGNED_DEPOSIT") {
     if (fundingPhase !== undefined && next !== "NODE_VERIFYING") throw new Error("INVALID_NODE_FUNDING_FILTER");
+    // Read both states together for the owner-signed funding lane. Each paged
+    // query can otherwise scan the same D1 records again before claiming.
+    const signedFundingLane = supportedKinds?.length === 1 && supportedKinds[0] === "AUTHORIZED_FUNDING"
+        && (next === "CRANKER_LEASED" || fundingPhase === "SIGNED_DEPOSIT");
+    const fundingWork = signedFundingLane
+        ? await workWithStatus(dependencies, [status, next], "AUTHORIZED_FUNDING")
+        : null;
     // Requeue abandoned leases before selecting fresh work. This prevents a
     // Node authorization failure or Cranker crash from permanently stranding
     // settlement work in an intermediate state.
-    const stale = await workWithStatus(dependencies, next);
-    for (const candidate of stale.docs) {
+    const stale = fundingWork
+        ? fundingWork.docs.filter(candidate => candidate.get("status") === next)
+        : (await workWithStatus(dependencies, next)).docs;
+    let reclaimed = false;
+    for (const candidate of stale) {
         const data = candidate.data() as ReceiverWork;
         if (!matchesFundingLeasePhase(data, fundingPhase))
             continue;
@@ -21,19 +31,21 @@ export async function lease(dependencies: Pick<WorkDependencies, "db" | "hasReso
         const leaseValue = next === "NODE_VERIFYING" ? data.nodeLease : data.crankerLease;
         if (!leaseValue || Date.parse(leaseValue.expiresAt) > Date.now())
             continue;
-        await dependencies.db.runTransaction(reclaimExpiredWorkLease.bind(null, dependencies, candidate, next, fundingPhase));
+        if (await dependencies.db.runTransaction(reclaimExpiredWorkLease.bind(null, dependencies, candidate, next, fundingPhase)))
+            reclaimed = true;
     }
-    // Avoid requiring a composite Firestore index for the hot lease path. The
-    // bounded result set is ordered locally and remains deterministic.
-    const candidates = await workWithStatus(dependencies, status);
+    // Re-read after a recovery so the reclaimed work can be selected now.
+    const candidates = fundingWork && !reclaimed
+        ? fundingWork.docs.filter(candidate => candidate.get("status") === status)
+        : (await workWithStatus(dependencies, status, signedFundingLane ? "AUTHORIZED_FUNDING" : undefined)).docs;
     // Shared groups do not expose funding arrival order as settlement order.
-    for (let i = candidates.docs.length - 1; i > 0; i--) {
+    for (let i = candidates.length - 1; i > 0; i--) {
         const j = dependencies.randomInt(i + 1);
-        [candidates.docs[i], candidates.docs[j]] = [candidates.docs[j], candidates.docs[i]];
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
     }
     // Accounting frees dependent credits before selecting them.
-    candidates.docs.sort(compareAccountingPriority);
-    for (const candidate of candidates.docs) {
+    candidates.sort(compareAccountingPriority);
+    for (const candidate of candidates) {
         if (!matchesFundingLeasePhase(candidate.data() as ReceiverWork, fundingPhase))
             continue;
         if (!dependencies.isSupportedWorkKind(candidate.get("kind")))

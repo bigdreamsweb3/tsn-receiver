@@ -1,13 +1,15 @@
 /** Authored work component; transaction boundaries, errors and return values retain the baseline contract. */
-import type { ReceiverWork, WorkKind, WorkStatus } from "../work-contract";
-import type { WorkDependencies } from "./dependencies";
-export async function workWithStatus(dependencies: Pick<WorkDependencies, "workCollection">, status: string) {
-    const docs = [];
-    let after;
+import type { WorkKind, WorkStatus } from "../work-contract";
+import type { SnapshotPort, WorkDependencies } from "./dependencies";
+export async function workWithStatus(dependencies: Pick<WorkDependencies, "workCollection">, status: WorkStatus | readonly WorkStatus[], kind?: WorkKind) {
+    let matching = dependencies.workCollection.where("status", typeof status === "string" ? "==" : "in", status);
+    if (kind)
+        matching = matching.where("kind", "==", kind);
+    const ordered = matching.orderBy("__name__");
+    const docs: SnapshotPort[] = [];
+    let after: SnapshotPort | undefined;
     while (true) {
-        let query = dependencies.workCollection.where("status", "==", status).orderBy("__name__");
-        if (after)
-            query = query.startAfter(after);
+        const query = after ? ordered.startAfter(after) : ordered;
         const page = await query.limit(200).get();
         docs.push(...page.docs);
         if (page.docs.length < 200)

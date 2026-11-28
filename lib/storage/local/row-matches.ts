@@ -4,6 +4,7 @@ export function rowMatches(row: Row, filters: [string,string,unknown][]): boolea
     const actual = row[field]; const value = expected as any; let matches;
     if (operator === "==") matches = actual === value;
     else if (operator === "!=") matches = actual !== value;
+    else if (operator === "in") matches = Array.isArray(value) && value.includes(actual);
     else if (operator === "<") matches = actual < value;
     else if (operator === "<=") matches = actual <= value;
     else if (operator === ">") matches = actual > value;

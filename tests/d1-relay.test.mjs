@@ -52,6 +52,31 @@ test("D1 indexed point reads use one request and omit unrelated rows",async()=>{
  assert.equal((await collection.doc("one").get()).get("id"),"one");assert.equal(calls.length,1);assert.equal(calls[0].keys.length,2);assert.equal(calls[0].keys.includes(db.recordKey("point","other")),false);
 });
 
+test("a ready Cranker funding claim scans D1 work records once", async () => {
+ const db = fixture.persistenceFactory();
+ await compileReceiverFixture(fixture.directory, ["work/lease.ts"]);
+ const { lease } = await import(pathToFileURL(path.join(fixture.directory, "work/lease.mjs")).href);
+ const workCollection = db.collection("funding-claim");
+ const funding = { id: "funding", kind: "AUTHORIZED_FUNDING", status: "VERIFIED", stateVersion: 6, payload: {} };
+ const native = { id: "native", kind: "TIN_DEBIT", status: "CONFIRMED", stateVersion: 8, payload: {} };
+ await workCollection.doc(funding.id).create(funding);
+ await workCollection.doc(native.id).create(native);
+
+ const original = db.command;
+ const scannedKeys = [];
+ db.command = async request => {
+  if (request.operation === "read") scannedKeys.push(...request.keys);
+  return original(request);
+ };
+ const dependencies = { db, workCollection, randomInt: () => 0, hasResolvedNonExecution: () => false,
+  isSupportedWorkKind: kind => kind === funding.kind || kind === native.kind };
+ const work = await lease(dependencies, "VERIFIED", "CRANKER_LEASED", "cranker", [funding.kind]);
+ assert.equal(work?.id, funding.id);
+ assert.equal(work.stateVersion, 7);
+ const unrelatedKey = db.recordKey("funding-claim", native.id);
+ assert.equal(scannedKeys.filter(key => key === unrelatedKey).length, 1);
+});
+
 test("identical sets, unchanged merges and absent deletes perform no D1 mutations", async () => {
  const db=fixture.persistenceFactory(),collection=db.collection("no-op"),doc=collection.doc("one");
  await doc.create({status:"READY",version:1});

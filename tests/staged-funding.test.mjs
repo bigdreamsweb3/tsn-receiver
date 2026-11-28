@@ -20,6 +20,7 @@ import { signedFundingFilterRaceTest } from "./cases/staged-funding/signed-fundi
 import { signedFundingFilterRouteTest } from "./cases/staged-funding/signed-funding-filter-route-test.mjs";
 import { independentFundingLanesTest } from "./cases/staged-funding/independent-funding-lanes-test.mjs";
 import { signedFundingReclamationRaceTest } from "./cases/staged-funding/signed-funding-reclamation-race-test.mjs";
+import { fundingCrankerQueryTest, signedFundingNodeQueryTest } from "./cases/staged-funding/funding-lease-query-test.mjs";
 
 /** Discovery facade; each case uses fresh explicit local storage and synthetic cryptographic material. */
 const fixture = await createStagedFixture();
@@ -41,6 +42,8 @@ test("signed-funding selection rechecks the current phase atomically before leas
 test("Node work HTTP validates the optional signed-funding filter before the persistence call", signedFundingFilterRouteTest.bind(null, fixture));
 test("authorization and signed-funding lanes claim disjoint work without blocking each other", independentFundingLanesTest.bind(null, fixture));
 test("signed-funding reclamation rechecks the persisted phase while ordinary reclamation remains unchanged", signedFundingReclamationRaceTest.bind(null, fixture));
+test("signed-funding Node claims read both statuses together and re-read after reclaiming an expired lease", signedFundingNodeQueryTest.bind(null, fixture));
+test("funding Cranker claims read both statuses together and leave native lease recovery to the native lane", fundingCrankerQueryTest.bind(null, fixture));
 
 test("TIN-Debit ingress encrypts openings, preserves identical retries and attaches the current lease authorization", tinDebitIngressTest.bind(null, fixture));
 test("TIN-Debit public status releases exact pre-signing stops and fences uncertain failures", tinDebitStatusTest.bind(null, fixture));
